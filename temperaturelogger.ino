@@ -1,7 +1,19 @@
 #include "OneWire/OneWire.h"
 #include "temperaturereader.h"
+#include "HttpClient.h"
 
-// TCPClient client;
+HttpClient http;
+
+// Headers currently need to be set at init, useful for API keys etc.
+http_header_t headers[] = {
+    //  { "Content-Type", "application/json" },
+    //  { "Accept" , "application/json" },
+    { "Accept" , "*/*"},
+    { NULL, NULL } // NOTE: Always terminate headers will NULL
+};
+
+http_request_t request;
+http_response_t response;
 
 // void ipArrayFromString(byte ipArray[], String ipString) {
 //   int dot1 = ipString.indexOf('.');
@@ -11,17 +23,6 @@
 //   dot1 = ipString.indexOf('.', dot2 + 1);
 //   ipArray[2] = ipString.substring(dot2 + 1, dot1).toInt();
 //   ipArray[3] = ipString.substring(dot1 + 1).toInt();
-// }
-
-// int connectToMyServer(String ip) {
-//   byte serverAddress[4];
-//   ipArrayFromString(serverAddress, ip);
-
-//   if (client.connect(serverAddress, 9000)) {
-//     return 1; // successfully connected
-//   } else {
-//     return -1; // failed to connect
-//   }
 // }
 
 char nodeName[20] = "NoName";
@@ -45,17 +46,37 @@ bool next_interval() {
     return last_alarm > alarm /*overflow*/ || millis() > alarm /*time passed*/;
 }
 
-// byte trackr_server[] = { 192, 168, 1, 10 };
-// int postTemperature(float temp, String unit){
-//     if (client.connect(trackr_server, 80)) {
-//         Serial.println("connected");
-//         client.println("POST /api/temperature HTTP/1.0");
-//         client.println("Host: 192.168.1.10:8080");
-//         client.println("Content-Length: 0");
-//         client.println();
-//     }
-//     return 0;
-// }
+String trackr_server_str = "192.168.1.10";
+int trackr_port = 8080;
+
+int sendTemperature(float temp){
+    String nodeInfo = String("nodeName=" + String(nodeName));
+    String tempInfo = String("&temperature=" + String(temp));
+    String data = String(nodeInfo + tempInfo);
+    
+    // Serial.println("Data Payload:");
+    // Serial.println(data);
+    
+    return postData(trackr_server_str, trackr_port, String("/api/temperature"), data);
+}
+
+int postData(String server, int port, String path, String payload){
+    Serial.println("good connection");
+    
+    request.hostname = server;
+    request.port = port;
+    request.path = path;
+
+    request.body = payload.c_str();
+
+    http.post(request, response, headers);
+    Serial.print("Application>\tResponse status: ");
+    Serial.println(response.status);
+
+    Serial.print("Application>\tHTTP Response Body: ");
+    Serial.println(response.body);
+    return 1;
+}
 
 // char coreID[12];
 
@@ -86,61 +107,31 @@ int found=0;
 void setup() {
     Serial.begin(9600);
     // strcpy(coreID, getCoreID().c_str());
-    // Spark.function("connect", connectToMyServer);
     Spark.function("setNodeName", setNodeName);
     Spark.variable("nodeName", &nodeName, STRING);
     resetAlarm();
     ow = new OneWire(D0);
     // Get first sensor
     found = (*ow).search(addr);
-
-    // pinMode(D7, OUTPUT);
 }
-
-// void getFirstDevice(byte *addr){
-//     // int deviceItr = 0;
-//     int searchStatus;
-    
-//     // while(deviceItr < maxDevices || searchStatus == 0){
-//         searchStatus = !ow.search(addr);
-//         // Serial.println(addr);
-//         // deviceItr++;
-//     // }
-//     // return addr;
-// }
 
 void loop() {
     if(found != 1)
         found = (*ow).search(addr);
         
     if(next_interval()){
-        // Serial.print(found);
-        // Serial.println("blah");
+        // Serial.println(found);
         resetAlarm();
         
-        // Serial.print("Tweaky");
-        
         // Serial.print(coreID);
-        Serial.print(" - ");
         Serial.println(alarm);
         
         if(found == 1) {
-            Serial.print("Fahrenheit: ");
+            // Serial.print("Fahrenheit: ");
             float temp = TemperatureReader::getTemperature(*ow, addr, 1);
-            Serial.println(temp);
-            Serial.println("");
+            // Serial.println(temp);
+            sendTemperature(temp);
         } else
             Serial.println("Not Found");
     }
-//   if (client.connected()) {
-//     if (client.available()) {
-//       char pin = client.read() - '0' + D0;
-//       char level = client.read();
-//       if ('h' == level) {
-//         digitalWrite(pin, HIGH);
-//       } else {
-//         digitalWrite(pin, LOW);
-//       }
-//     }
-//   }
 }

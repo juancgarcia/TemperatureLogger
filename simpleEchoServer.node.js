@@ -2,12 +2,13 @@ var
 http = require('http'),
 qs = require('querystring');
 
-var serverPort = 8888;
+var serverPort = 8080;
 
 http.createServer(function(req, resp){
    if(req.method == "GET"){
       resp.writeHead(200, {'Content-Type': 'text/json'});
       resp.end(JSON.stringify({code: 200, success: true, msg: "post some data to echo"}));
+      console.log('Getting');
    } else if(req.method == "POST") {
       var requestBody = '';
       req.on('data', function(data){
@@ -20,6 +21,8 @@ http.createServer(function(req, resp){
       });
       req.on('end', function(){
          var formData = qs.parse(requestBody);
+         console.log('Posting');
+         console.log(formData);
          resp.writeHead(200, {'Content-Type': 'text/json'});
          resp.end(JSON.stringify({success: true, code: 200, data_echo: formData}));
       });
