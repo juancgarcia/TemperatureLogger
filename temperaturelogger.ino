@@ -2,11 +2,25 @@
 #include "temperaturereader.h"
 #include "HttpClient.h"
 
+// #include "AssignNode.h"
+
+String coreID;
+
+OneWire *ow;
+byte addr[8];
+int found=0;
+
+String trackr_server_str = "192.168.1.21";
+int trackr_port = 8080;
+String trackr_path = "/api/temperature";
+
 HttpClient http;
 
 // Headers currently need to be set at init, useful for API keys etc.
 http_header_t headers[] = {
+    { "Cache-Control", "no-cache" },
    //  { "Content-Type", "application/json" },
+    { "Content-Type", "application/x-www-form-urlencoded" },
    //  { "Accept" , "application/json" },
    { "Accept" , "*/*"},
    { NULL, NULL } // NOTE:  -Always terminate headers will NULL
@@ -25,16 +39,10 @@ http_response_t response;
 //   ipArray[3] = ipString.substring(dot1 + 1).toInt();
 // }
 
-char nodeName[20] = "NoName";
 unsigned long last_alarm = 0,
-   // refresh = /*min*/ 10 * /*sec*/ 60 * /*millis*/ 1000,
-   refresh = /*sec*/ 10 * /*millis*/ 1000,
+   refresh = /*min*/ 5 * /*sec*/ 60 * /*millis*/ 1000,
+   // refresh = /*sec*/ 10 * /*millis*/ 1000,
    alarm = 1;
-
-int setNodeName(String name) {
-   strcpy(nodeName, name.c_str());
-   return 1;
-}
 
 int resetAlarm() {
    last_alarm = alarm;
@@ -46,28 +54,11 @@ bool next_interval() {
    return last_alarm > alarm /*overflow*/ || millis() > alarm /*time passed*/;
 }
 
-String trackr_server_str = "192.168.1.10";
-int trackr_port = 8080;
-
-int sendTemperature(float temp){
-   String nodeInfo = String("nodeName=" + String(nodeName));
-   String tempInfo = String("&temperature=" + String(temp));
+int sendTemperature(float temp, String unit){
+   String nodeInfo = String("deviceType=spark&deviceId=" + coreID);
+   String tempInfo = String("&value=" + String(temp) + "&unit="+ unit);
    String data = String(nodeInfo + tempInfo);
-
-   // Serial.println("Data Payload:");
-   // Serial.println(data);
-
-   return postData(trackr_server_str, trackr_port, String("/api/temperature"), data);
-}
-
-int postData(String server, int port, String path, String payload){
-   Serial.println("good connection");
-   
-   request.hostname = server;
-   request.port = port;
-   request.path = path;
-
-   request.body = payload.c_str();
+   request.body = data.c_str();
 
    http.post(request, response, headers);
    Serial.print("Application>\tResponse status: ");
@@ -75,44 +66,26 @@ int postData(String server, int port, String path, String payload){
 
    Serial.print("Application>\tHTTP Response Body: ");
    Serial.println(response.body);
+
    return 1;
 }
 
-// char coreID[12];
-
-// String getCoreID()
-// {
-//   String coreIdentifier = "";
-//   char id[12];
-//   memcpy(id, (char *)ID1, 12);
-//   char hex_digit;
-//   for (int i = 0; i < 12; ++i)
-//   {
-//     hex_digit = 48 + (id[i] >> 4);
-//     if (57 < hex_digit)
-//      hex_digit += 39;
-//      coreIdentifier = coreIdentifier + hex_digit;
-//     hex_digit = 48 + (id[i] & 0xf);
-//   if (57 < hex_digit)
-//      hex_digit += 39;
-//   coreIdentifier = coreIdentifier + hex_digit;
-//  }
-//  return coreIdentifier;
-// }
-
-OneWire *ow;
-byte addr[8];
-int found=0;
-
 void setup() {
    Serial.begin(9600);
-   // strcpy(coreID, getCoreID().c_str());
-   Spark.function("setNodeName", setNodeName);
-   Spark.variable("nodeName", &nodeName, STRING);
+
    resetAlarm();
+
    ow = new OneWire(D0);
    // Get first sensor
    found = (*ow).search(addr);
+
+   // http connection
+   request.hostname = trackr_server_str;
+   request.port = trackr_port;
+   request.path = trackr_path;
+
+   String temp = Spark.deviceID();
+   coreID = temp;
 }
 
 void loop() {
@@ -120,17 +93,17 @@ void loop() {
       found = (*ow).search(addr);
 
    if(next_interval()){
-      // Serial.println(found);
+      Serial.print("coreID: ");
+      Serial.println(coreID);
       resetAlarm();
 
-      // Serial.print(coreID);
       Serial.println(alarm);
 
       if(found == 1) {
          // Serial.print("Fahrenheit: ");
-         float temp = TemperatureReader::getTemperature(*ow, addr, 1);
+         float temp = TemperatureReader::getTemperature(*ow, addr, 1/*fahrenheit*/);
          // Serial.println(temp);
-         sendTemperature(temp);
+         sendTemperature(temp, "fahrenheit");
       } else
          Serial.println("Not Found");
    }

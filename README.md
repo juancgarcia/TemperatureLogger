@@ -1,1 +1,1 @@
-WIP
+[TemperatureLogger](https://github.com/juancgarcia/TemperatureLogger) is a [sparkcore](http://spark.io) based temperature sensor. It posts readings to the data logging server [trackr](https://github.com/juancgarcia/trackr) which provides this zone data for the web-enabled thermostat, [thermo](https://github.com/juancgarcia/thermo).
